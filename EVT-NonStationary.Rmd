@@ -1,0 +1,153 @@
+---
+title: "EVT of Non-Stationary Data (Assume Independence)"
+author: "Rishikesh Yadav"
+date: "2024-08-02"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ismev)
+library(extRemes)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(MASS)
+library(nlme)
+```
+
+## Introduction
+
+This analysis focuses on the yearly maxima of rainfall data from West England (1941-1962). We will detect if there is any trend in the yearly maxima and fit Generalized Extreme Value (GEV) models with and without trend components. Finally, we will compare the fits to assess the significance of the trend component.
+
+## Data Loading and Preprocessing
+
+```{r}
+# Load the data
+data(rain)
+rain_data <- data.frame(date = seq.Date(from = as.Date("1914-01-01"), 
+                                        to = as.Date("1961-12-30"), by = "day"),
+                        rainfall = rain)
+summary(rain_data$rainfall)
+```
+
+## Extracting Yearly Maxima
+
+```{r}
+# Extract yearly maxima
+rain_data_y <- rain_data %>%
+  mutate(year = year(date)) %>%
+  group_by(year) %>%
+  summarize(max_rainfall = max(rainfall, na.rm = TRUE)) %>%
+  ungroup()
+head(rain_data_y)
+```
+
+## Detecting Trend in Yearly Maxima
+
+```{r}
+# Plot yearly maxima to visually inspect for trend
+ggplot(rain_data_y, aes(x = year, y = max_rainfall)) +
+  geom_line(color = 'blue') +
+  geom_smooth(method = 'lm', se = FALSE, color = 'red') +
+  labs(title = "Yearly Maxima of Rainfall with Trend Line", x = "Year", y = "Max Rainfall (mm)") +
+  theme_minimal()
+
+# Fit a linear model to detect trend
+trend_model <- lm(max_rainfall ~ year, data = rain_data_y)
+summary(trend_model)
+```
+
+**Interpretation**:
+
+The plot shows the yearly maxima of rainfall along with a linear trend line. The summary of the linear model provides information on the presence of any significant trend in the yearly maxima.
+
+## Fitting GEV Models
+
+### Without Trend Component
+
+```{r}
+# Fit GEV model without trend
+gev_no_trend <- fevd(rain_data_y$max_rainfall, type = "GEV")
+sumry_no_trend<- summary(gev_no_trend)
+```
+
+### With Trend Component
+
+```{r}
+# Fit GEV model with trend
+gev_with_trend <- fevd(rain_data_y$max_rainfall, data = rain_data_y, 
+                       location.fun = ~ year, type = "GEV")
+sumry_with_trend<- summary(gev_with_trend)
+```
+
+## Comparison of Fits
+
+```{r}
+# Compare AIC values
+data.frame(Model = c("No Trend", "With Trend"), AIC = c(sumry_no_trend$AIC, sumry_with_trend$AIC))
+```
+
+**Interpretation**:
+
+The Akaike Information Criterion (AIC) values for the GEV models with and without trend components help us compare the models. The model with the lower AIC value is preferred.
+
+## Diagnostic Plots
+### Without Trend Component
+
+```{r}
+# Diagnostic plots for GEV model without trend
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+plot(gev_no_trend, "density", main=c("Density Plots"))
+plot(gev_no_trend, "qq", main=c("Qunatile-Quantile plots"))
+```
+
+### With Trend Component
+
+```{r}
+# Diagnostic plots for GEV model with trend
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+plot(gev_with_trend, "density", main=c("Density Plots"))
+plot(gev_with_trend, "qq", main=c("Qunatile-Quantile plots"))
+```
+
+## Conclusion
+
+The analysis of yearly maxima of rainfall data indicates whether there is a significant trend over time. By fitting GEV models with and without trend components, we assess the significance of the trend. The AIC values and diagnostic plots help us compare the models and determine the best fit.
+
+# Fitting GPD Models
+
+## Without Trend Component
+```{r}
+# Set a threshold for GPD
+threshold <- quantile(rain_data$rainfall, 0.95, na.rm = TRUE)
+
+# Extract exceedances over the threshold
+exceedances <- rain_data %>%
+  filter(rainfall > threshold) %>%
+  mutate(year = year(date))
+exceedances$rainfall<- exceedances$rainfall - threshold
+# Fit GPD model without trend
+gpd_no_trend <- fevd(exceedances$rainfall, threshold = 0, type = "GP")
+summry_no_trend<- summary(gpd_no_trend)
+
+```
+
+
+## With Trend Component
+
+```{r}
+# Fit GPD model with trend
+gpd_with_trend <- fevd(exceedances$rainfall, threshold = 0, type = "GP", data = exceedances,
+                       scale.fun = ~ year)
+summry_with_trend<- summary(gpd_with_trend)
+```
+
+#Comparison of Fits
+```{r}
+# Compare AIC values
+data.frame(Model = c("No Trend", "With Trend"), AIC = c(summry_no_trend$AIC, summry_with_trend$AIC))
+
+```
