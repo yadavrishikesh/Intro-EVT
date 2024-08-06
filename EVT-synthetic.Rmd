@@ -1,0 +1,59 @@
+---
+title: "EVT on Synthetic Data (Max Domain of Attarction)"
+author: "Rishikesh Yadav"
+date: "2024-08-07"
+output: html_document
+---
+
+## Introduction
+
+This document demonstrates the simulation of data from different distributions, extraction of yearly maxima, and fitting of Generalized Extreme Value (GEV) and Generalized Pareto Distribution (GPD) using the `extRemes` package.
+
+## Setup
+
+```{r setup, include=FALSE}
+library(extRemes)
+library(evd)
+library(VGAM)  # Load VGAM package for Pareto distribution
+set.seed(123)  # Set seed for reproducibility
+```
+
+## Simulate Data
+
+We simulate 100 years of data from various distributions, excluding the uniform distribution.
+
+```{r simulate-data}
+# Number of years and number of data points per year
+num_years <- 100
+data_per_year <- 365
+
+# Simulate data for each distribution
+cauchy_data <- matrix(rcauchy(num_years * data_per_year), nrow = num_years)
+gaussian_data <- matrix(rnorm(num_years * data_per_year), nrow = num_years)
+exponential_data <- matrix(rexp(num_years * data_per_year), nrow = num_years)
+pareto_data <- matrix(rpareto(num_years * data_per_year, shape = 1), nrow = num_years)  # using VGAM package
+
+# Extract yearly maxima
+max_cauchy <- apply(cauchy_data, 1, max)
+max_gaussian <- apply(gaussian_data, 1, max)
+max_exponential <- apply(exponential_data, 1, max)
+max_pareto <- apply(pareto_data, 1, max)
+```
+
+## Fit GEV Distribution
+
+Fit GEV distribution to the yearly maxima data.
+
+```{r fit-gev}
+# Fit GEV distribution
+fit_gev_cauchy <- fevd(max_cauchy, type = "GEV")
+fit_gev_gaussian <- fevd(max_gaussian, type = "GEV")
+fit_gev_exponential <- fevd(max_exponential, type = "GEV")
+fit_gev_pareto <- fevd(max_pareto, type = "GEV")
+
+sumry_gev_cauchy<- summary(fit_gev_cauchy)
+sumry_gev_gaussian<- summary(fit_gev_gaussian)
+sumry_gev_exponential<- summary(fit_gev_exponential)
+sumry_gev_pareto<- summary(fit_gev_pareto)
+
+```
