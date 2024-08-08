@@ -1,0 +1,161 @@
+---
+title: "Gradient Descent for Polynomial Regression"
+author: "Rishikesh Yadav"
+date: "2024-08-08"
+output: html_document
+---
+
+# Introduction
+
+In this document, we demonstrate the implementation of a gradient descent algorithm for polynomial regression. Our goal is to fit a polynomial model to synthetic data and visualize the results. We will cover the following steps:   
+1. Defining the loss function and its gradient.  
+2. Implementing the gradient descent algorithm.  
+3. Generating synthetic data.  
+4. Running the gradient descent and visualizing the results.  
+
+```{r setup, include=FALSE}
+# Clear the workspace
+rm(list = ls())  # Remove all objects from the current environment to start fresh
+setwd(this.path::here())  # Set the working directory to the directory containing the current script
+```
+
+
+```{r libraries}
+# Load necessary libraries
+library(ggplot2)  # For creating plots
+library(gridExtra)  # For arranging multiple plots in a grid layout
+```
+
+# Define the Loss Function and Gradient
+
+We define the Mean Squared Error (MSE) as the loss function and its gradient for polynomial regression.
+
+```{r loss-function}
+# Define the loss function (Mean Squared Error for polynomial regression)
+loss_function_poly <- function(w, data, degree) {
+  y_pred <- predict_poly(data$x, w, degree)  # Predict y using the polynomial function
+  sum((data$y - y_pred)^2) / nrow(data)  # Compute and return the Mean Squared Error
+}
+
+# Define the gradient of the loss function for polynomial regression
+gradient_poly <- function(w, data, degree) {
+  y_pred <- predict_poly(data$x, w, degree)  # Predict y using the polynomial function
+  gradients <- sapply(0:degree, function(j) {
+    -2 * sum((data$y - y_pred) * (data$x^j)) / nrow(data)  # Compute gradient for each coefficient
+  })
+  return(gradients)  # Return the gradients
+}
+```
+
+# Polynomial Prediction Function
+
+We define a function to predict `y` using the polynomial model.
+
+```{r prediction-function}
+# Polynomial prediction function
+predict_poly <- function(x, w, degree) {
+  y_pred <- sapply(0:degree, function(j) w[j+1] * x^j)  # Compute polynomial terms
+  rowSums(y_pred)  # Sum the terms to get the prediction
+}
+```
+
+# Gradient Descent Algorithm
+
+We implement the gradient descent algorithm to optimize the coefficients of the polynomial model.
+
+```{r gradient-descent}
+# Gradient descent algorithm for polynomial regression
+gradient_descent_poly <- function(data, learning_rate, iterations, degree) {
+  w <- rep(0, degree + 1)  # Initialize coefficients to zero
+  history <- data.frame(iteration = integer(iterations), matrix(nrow = iterations, ncol = degree + 1), loss = numeric(iterations))  # Create a data frame to store the history of coefficients and loss
+  
+  for (i in 1:iterations) {
+    grads <- gradient_poly(w, data, degree)  # Compute gradients
+    w <- w - learning_rate * grads  # Update coefficients using gradient descent
+    loss <- loss_function_poly(w, data, degree)  # Compute loss
+    history[i, ] <- c(i, w, loss)  # Store iteration, coefficients, and loss
+  }
+  
+  colnames(history)[2:(degree + 2)] <- paste0("w", 0:degree)  # Set column names for coefficients
+  return(history)  # Return the history of the gradient descent process
+}
+```
+
+# Generate Synthetic Data
+
+We generate synthetic data for the polynomial regression model.
+
+```{r generate-data}
+# Generate synthetic data
+set.seed(42)  # Set seed for reproducibility
+n <- 1000  # Number of data points
+x <- rnorm(n)  # Generate random normal data for x
+w0 <- 1; w1 <- -1; w2 <- 2.1; w3 <- -2  # Define true coefficients
+y <- w0 + w1 * x + w2 * x^2 + w3 * x^3 + rnorm(n, sd= sqrt(3))  # Generate y with a polynomial relationship and added noise
+data <- data.frame(x = x, y = y)  # Create a data frame with x and y
+```
+
+# Scatter Plot of Simulated Data
+
+We create scatter plots of the simulated data to visualize the relationship between `x` and `y`.
+
+```{r scatter-plot}
+# Scatter plot of the simulated data
+scatter_plot <- ggplot(data, aes(x = x, y = y)) +
+  geom_point(color = 'blue') +
+  labs(title = "Scatter Plot of Simulated Data") +
+  theme(plot.title = element_text(size = 20), axis.title.x = element_text(size = 15), axis.title.y = element_text(size = 15))
+scatter_plot  # Display the scatter plot
+```
+
+# Perform Gradient Descent
+
+We run the gradient descent algorithm to find the optimal coefficients for the polynomial model.
+
+```{r perform-gd}
+# Perform gradient descent for polynomial regression
+degree <- 3  # Degree of the polynomial
+learning_rate <- 0.01  # Learning rate for gradient descent
+iterations <- 1000  # Number of iterations for gradient descent
+history <- gradient_descent_poly(data, learning_rate, iterations, degree)  # Perform gradient descent
+```
+
+# Visualize the Results
+
+We create plots to visualize the data, the final regression curve, and the convergence of the loss function and coefficients.
+
+```{r visualize-results}
+# Plot the data points and the final regression curve
+data$y_pred <- predict_poly(data$x, as.numeric(history[iterations, 2:(degree + 2)]), degree)  # Predict y using the final coefficients from gradient descent
+p1 <- ggplot(data, aes(x = x, y = y)) +
+  geom_point(color = 'blue') +  # Plot data points
+  geom_line(aes(y = y_pred), color = 'red') +  # Plot the regression curve
+  labs(title = "Data Points and Final Polynomial Regression Curve") +  # Add a title to the plot
+  theme(plot.title = element_text(size = 20), axis.title.x = element_text(size = 15), axis.title.y = element_text(size = 15))  # Customize the plot title and axis labels
+
+# Plot the loss function over iterations
+p2 <- ggplot(history, aes(x = iteration, y = loss)) +
+  geom_line(color = 'blue') +  # Plot the loss over iterations
+  labs(title = "Loss Function Over Iterations") +  # Add a title to the plot
+  theme(plot.title = element_text(size = 20), axis.title.x = element_text(size = 15), axis.title.y = element_text(size = 15))  # Customize the plot title and axis labels
+
+# Plot the convergence of the polynomial coefficients
+p3 <- ggplot(history, aes(x = iteration)) +
+  geom_line(aes(y = w0), color = 'green') +  # Plot the convergence of the intercept
+  geom_line(aes(y = w1), color = 'purple') +  # Plot the convergence of the first coefficient
+  geom_line(aes(y = w2), color = 'orange') +  # Plot the convergence of the second coefficient
+  geom_line(aes(y = w3), color = 'blue') +  # Plot the convergence of the third coefficient
+  geom_hline(yintercept = w0, linetype = "dashed", color = "green") +  # Add a dashed line at the true value of the intercept
+  geom_hline(yintercept = w1, linetype = "dashed", color = "purple") +  # Add a dashed line at the true value of the first coefficient
+  geom_hline(yintercept = w2, linetype = "dashed", color = "orange") +  # Add a dashed line at the true value of the second coefficient
+  geom_hline(yintercept = w3, linetype = "dashed", color = "blue") +  # Add a dashed line at the true value of the third coefficient
+  labs(title = "Convergence of Polynomial Coefficients", y = "Coefficients") +  # Add a title and y-axis label to the plot
+  theme(plot.title = element_text(size = 20), axis.title.x = element_text(size = 15), axis.title.y = element_text(size = 15)) +  # Customize the plot title and axis labels
+  scale_color_manual(values = c("w0" = "green", "w1" = "purple", "w2" = "orange", "w3" = "blue"))  # Set custom colors for the lines
+
+# Save the plots to a PDF file with increased height for each figure
+#pdf("../../RKeras/figures/gradient_descent_polynomial_harmonic_plots.pdf", width = 10, height = 15)  # Create a PDF file to save the plots with increased height
+grid.arrange(p1, p2, p3, nrow = 3)  # Arrange the three plots
+#dev.off()
+```
+

@@ -1,0 +1,132 @@
+---
+title: "NNs for Classification Using `neuralnet` R Package"
+author: "Rishikesh Yadav"
+date: "2024-08-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+In this document, we will construct a basic neural network architecture using the `neuralnet` package in R. We will cross-check our implemented code for NNs from scarcth. You may look at the file `NNs-for-classification_from_scratch.Rmd`
+
+## Install and Load Necessary Packages
+
+We start by installing and loading the necessary packages.
+
+```{r install-packages}
+library(neuralnet)
+library(ggplot2)
+```
+
+## Generate Synthetic Data
+
+We generate synthetic data for this example. The data consists of two input features (`x1` and `x2`) and a binary target variable (`y`).
+
+```{r generate-data}
+set.seed(42)
+n <- 1000
+x1 <- rnorm(n)
+x2 <- rnorm(n)
+y <- ifelse(x1^2 + x2^2 + rnorm(n) > 1.5, 1, 0)
+data <- data.frame(x1 = x1, x2 = x2, y = y)
+```
+
+## Split Data into Training and Test Sets
+
+We split the data into training and test sets. 70% of the data is used for training and 30% for testing.
+
+```{r split-data}
+set.seed(42)
+train_indices <- sample(1:n, size = 0.7 * n)
+train_data <- data[train_indices, ]
+test_data <- data[-train_indices, ]
+```
+
+## Define Neural Network Formula
+
+We define the formula for the neural network. In this case, we want to predict `y` using `x1` and `x2`.
+
+```{r define-formula}
+formula <- y ~ x1 + x2
+```
+
+## Train the Neural Network
+
+We train the neural network using the `neuralnet` package. We specify one hidden layer with 10 neurons and use the sigmoid activation function.
+
+```{r train-network}
+set.seed(42)
+nn <- neuralnet(formula,
+                data = train_data,
+                hidden = c(10),
+                linear.output = FALSE,
+                stepmax = 1e6,
+                learningrate = 0.1)
+```
+
+## Plot the Neural Network Architecture
+
+We plot the neural network to visualize its structure.
+
+```{r plot-network, fig.width=10, fig.height=8}
+plot(nn)
+```
+
+## Forward Propagation
+
+We define the forward propagation function, which computes the weighted sum of inputs and applies the activation function.
+
+```{r forward-propagation}
+forward_propagation <- function(X, weights, biases, activation_function) {
+  Z <- X %*% weights + biases
+  A <- activation_function(Z)
+  return(list(Z = Z, A = A))
+}
+
+sigmoid <- function(z) {
+  1 / (1 + exp(-z))
+}
+```
+
+## Evaluate the Model on Test Data
+
+We evaluate the trained model on the test data and calculate the accuracy.
+
+```{r evaluate-model}
+test_X <- as.matrix(test_data[, c("x1", "x2")])
+predictions <- compute(nn, test_X)$net.result
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+confusion_matrix <- table(test_data$y, predicted_classes)
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(confusion_matrix)
+print(paste("Accuracy:", accuracy))
+```
+
+## Plot Decision Boundary
+
+We plot the decision boundary of the neural network to visualize how it classifies the data.
+
+```{r plot-decision-boundary, fig.width=10, fig.height=8}
+plot_data <- expand.grid(x1 = seq(min(data$x1), max(data$x1), length.out = 200),
+                         x2 = seq(min(data$x2), max(data$x2), length.out = 200))
+pred_grid <- compute(nn, as.matrix(plot_data))$net.result
+plot_data$y <- ifelse(pred_grid > 0.5, 1, 0)
+
+ggplot(data, aes(x = x1, y = x2, color = factor(y))) +
+  geom_point() +
+  geom_contour(data = plot_data, aes(z = y), breaks = 0.5, color = "red") +
+  labs(title = "Decision Boundary of the Neural Network", x = "x1", y = "x2") +
+  theme(
+    plot.title = element_text(size = 20, face = "bold"),
+    axis.title.x = element_text(size = 15),
+    axis.title.y = element_text(size = 15)
+  )
+```
+
+## Conclusion
+In this example, we constructed a basic neural network using the `neuralnet` package in R. We covered the essential components of neural networks and demonstrated how to train and evaluate a neural network on synthetic data. The model's decision boundary was visualized to understand how it classifies the data. Remarkably, the results look very similar to what we achieved in when we code our NNs from scratch. You may look at `NNs-for-classification_from_scratch.R` or `NNs-for-classification_from_scratch.html` for our implemented NNs arcticetires for the classification purposes.  
