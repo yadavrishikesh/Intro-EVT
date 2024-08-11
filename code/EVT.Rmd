@@ -1,0 +1,231 @@
+---
+title: "EVT of IID data"
+author: "Rishikesh Yadav"
+date: "2024-08-07"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r, include=FALSE}
+# Set global options for knitr
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup, warning=FALSE, message=FALSE}
+# Load necessary libraries
+library(ismev)       # Functions for fitting extreme value models
+library(extRemes)    # Functions for extreme value theory analysis
+library(ggplot2)     # Visualization package for creating plots
+library(dplyr)       # Data manipulation functions
+library(lubridate)   # Functions for working with dates
+library(tidyr)       # Data tidying functions
+library(MASS)        # Functions for statistical methods, e.g., fitdistr
+```
+
+## Introduction
+
+This report presents an analysis of daily rainfall data from West England (1914-1961) using extreme value theory. We will fit Generalized Extreme Value (GEV) distributions for yearly maxima, as well as Generalized Pareto Distributions (GPD) for the exceedances over a high threshold.
+
+Understanding and modeling extreme rainfall events is crucial for several reasons:  
+- **Risk Assessment**: Identifying the frequency and magnitude of extreme rainfall helps in flood risk management and infrastructure planning.  
+- **Climate Change Analysis**: Analyzing trends in extreme events can provide insights into the impact of climate change.  
+- **Policy Making**: Helps in developing policies for disaster preparedness and mitigation. 
+
+## Data Loading and Preprocessing
+
+```{r}
+# Load the data from the ismev package
+data(rain)  # Loads the 'rain' dataset
+
+# Create a data frame with dates and rainfall data
+rain_data <- data.frame(date = seq.Date(from = as.Date("1914-01-01"), 
+                                        to = as.Date("1961-12-30"), by = "day"),
+                        rainfall = rain)
+
+# Display the first few rows of the data
+head(rain_data)
+
+# Summarize the rainfall data
+summary(rain_data$rainfall)
+```
+
+## Exploratory Data Analysis
+
+### Time Series Plot with Yearly Maxima
+
+```{r}
+# Extract yearly maxima and their dates
+rain_data_y <- rain_data %>%
+  mutate(year = year(date)) %>%
+  group_by(year) %>%
+  filter(rainfall == max(rainfall, na.rm = TRUE)) %>%
+  ungroup()
+
+# Plot the time series with yearly maxima
+ggplot(rain_data, aes(x = date, y = rainfall)) +
+  geom_line(color = 'blue') +
+  geom_point(data = rain_data_y, aes(x = date, y = rainfall),
+             color = "green", size = 3) +
+  labs(title = "Daily Rainfall Time Series (1941-1962) with Yearly Maxima", x = "Date", y = "Rainfall (mm)") +
+  theme_minimal()
+```
+
+### Distribution of Daily Rainfall
+
+```{r}
+# Histogram of daily rainfall
+ggplot(rain_data, aes(x = rainfall)) +
+  geom_histogram(binwidth = 1, fill = 'blue', color = 'black', alpha = 0.7) +
+  labs(title = "Histogram of Daily Rainfall", x = "Rainfall (mm)", y = "Frequency") +
+  theme_minimal()
+```
+
+### Yearly Trends
+
+```{r}
+# Plot yearly total rainfall
+rain_data %>%
+  mutate(year = year(date)) %>%
+  group_by(year) %>%
+  summarize(total_rainfall = sum(rainfall, na.rm = TRUE)) %>%
+  ggplot(aes(x = year, y = total_rainfall)) +
+  geom_line(color = 'blue') +
+  labs(title = "Yearly Total Rainfall (1941-1962)", x = "Year", y = "Total Rainfall (mm)") +
+  theme_minimal()
+```
+
+### Histogram of Yearly Maxima
+
+```{r}
+# Histogram of yearly maxima with kernel density plot
+ggplot(rain_data_y, aes(x = rainfall)) +
+  geom_histogram(aes(y = ..density..), binwidth = 10, fill = 'blue', color = 'black', alpha = 0.7) +
+  geom_density(color = 'red', size = 1) +
+  labs(title = "Histogram of Yearly Maxima with Kernel Density Plot", x = "Yearly Max Rainfall (mm)", y = "Density") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 16, face = "bold"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12))
+```
+
+## Yearly Maxima
+
+### Fit GEV Model
+
+```{r}
+# Fit GEV model to yearly maxima
+yearly_maxima <- rain_data_y$rainfall
+gev_yearly <- extRemes::fevd(yearly_maxima, type = "GEV", method = "MLE")
+summary(gev_yearly)
+```
+
+### Diagnostics
+
+```{r}
+# Diagnostic plots for GEV model of yearly maxima
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+plot(gev_yearly, "density", main=c("Density Plots"))
+plot(gev_yearly, "qq", main=c("Qunatile-Quantile plots"))
+
+```
+
+**Interpretation**: 
+
+- **Quantile Plot**: Also shows a good fit.
+- **Density Plot**: Matches well with the empirical data, indicating a good fit.
+
+### Return Level Plot
+
+```{r}
+# Return level plot for GEV model of yearly maxima
+plot(gev_yearly, type = "rl", main="Return Level")
+```
+
+**Interpretation**: 
+
+The return level plot for the yearly maxima GEV model shows the expected maximum rainfall for different return periods.
+
+## Generalized Pareto Distribution (GPD) for Exceedances
+
+### Threshold Selection
+
+```{r}
+threshold <- quantile(rain_data$rainfall, probs = 0.70)
+sum(rain_data$rainfall > threshold)
+# Plot daily rainfall to visually inspect threshold
+plot(rain_data$date, rain_data$rainfall, type = "l", main = "Daily Rainfall with Threshold Line",
+     xlab = "Date", ylab = "Rainfall (mm)")
+abline(h = threshold, col = "red", lty = 2)  # Example threshold line
+```
+
+### Fit GPD Model
+
+```{r}
+# Fit GPD model to exceedances over a chosen threshold
+exceedances <- rain_data$rainfall[rain_data$rainfall > threshold] - threshold
+gpd_fit <- extRemes::fevd(exceedances, threshold = 0, type = "GP", method = "MLE")
+summary(gpd_fit)
+```
+
+### Diagnostics
+
+```{r}
+# Diagnostic plots for GPD model
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+plot(gpd_fit, "density", main=c("Density Plots"))
+plot(gpd_fit, "qq", main=c("Qunatile-Quantile plots"))
+```
+
+**Interpretation**: 
+
+- **Quantile Plot**: Displays the quantiles for the exceedances, supporting the model fit.
+- **Density Plot**: Matches well with the empirical data, indicating a good fit.
+
+### Return Level Plot
+
+```{r}
+# Return level plot for GPD model
+plot(gpd_fit, type = "rl", main="Return Level")
+```
+
+**Interpretation**: 
+
+The return level plot for the GPD model shows the expected exceedance levels for different return periods, providing insights into the magnitude and frequency of extreme rainfall events.
+
+## Conclusion
+
+This analysis demonstrates the application of extreme value theory to model extreme rainfall events using GEV and GPD distributions.  The diagnostic plots and return level plots provide valuable insights into the fit and future predictions of the models.
+
+**Future Work**:  
+- **Trend Analysis**: Investigate potential trends in the extreme values over time.  
+- **Spatial Analysis**: Extend the analysis to include spatial aspects of rainfall data.  
+- **Climate Models**: Integrate climate model outputs to predict future extreme events under different climate scenarios.  
+
+
+# Exercise 
+
+Simulate \( n = 100 \times 365 \) data points from the Cauchy, Gaussian, Exponential, and Pareto distributions. Report the estimated shape parameters and their confidence intervals \(\xi\) for both the Generalized Pareto Distribution (GPD) and the Generalized Extreme Value (GEV) models. Fit the GEV model to yearly maxima, where each year has 365 days. Additionally, fit the GPD model for exceedances above a threshold set at the 90th percentile.
+
+The way to simulate the data from this is below
+
+```{r, warning=FALSE, message=FALSE}
+library(VGAM) 
+num_years <- 100
+data_per_year <- 365
+# Simulate data for each distribution
+cauchy_data <- matrix(rcauchy(num_years * data_per_year), nrow = num_years)
+gaussian_data <- matrix(rnorm(num_years * data_per_year), nrow = num_years)
+exponential_data <- matrix(rexp(num_years * data_per_year), nrow = num_years)
+pareto_data <- matrix(rpareto(num_years * data_per_year, shape = 2), nrow = num_years)  # using VGAM package
+
+```
+
+- Report what did you notice?
+- Is this what you expect?
+
+
+
+
+
+
